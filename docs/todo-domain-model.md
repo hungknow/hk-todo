@@ -67,50 +67,52 @@ impl Todo {
     /// Updates the Todo state with validation
     /// 
     /// # Parameters
-    /// - `self`: Takes ownership of Todo (immutable pattern)
+    /// - `&mut self`: Mutable reference to Todo (mutable pattern)
     /// - `new_state`: Target state to transition to
     /// 
     /// # Returns
-    /// - `Ok((Todo, Vec<TodoEvent>))`: Returns updated Todo and `[TodoEvent::TodoStateChanged]`
+    /// - `Ok(Vec<TodoEvent>)`: Returns `[TodoEvent::TodoStateChanged]`
     /// - `Err(TodoError::InvalidStateTransition)`: If transition not allowed or same state
     /// 
     /// # Special Requirements
     /// - Validates new state differs from current
+    /// - Mutates internal state directly
     /// - Marks as `dirty`
-    /// - Returns new instance (immutable)
-    pub fn update_state(self, new_state: TodoState) -> Result<(Self, Vec<TodoEvent>), TodoError> {
+    pub fn update_state(&mut self, new_state: TodoState) -> Result<Vec<TodoEvent>, TodoError> {
         // ...
     }
 
     /// Transitions to the next state in the workflow
     /// 
     /// # Parameters
-    /// - `self`: Takes ownership of Todo (immutable pattern)
+    /// - `&mut self`: Mutable reference to Todo (mutable pattern)
     /// 
     /// # Returns
-    /// - `Ok((Todo, Vec<TodoEvent>))`: Returns updated Todo and `[TodoEvent::TodoStateChanged]`
+    /// - `Ok(Vec<TodoEvent>)`: Returns `[TodoEvent::TodoStateChanged]`
     /// - `Err(TodoError::InvalidStateTransition)`: If already `Done` (cannot advance further)
     /// 
     /// # Special Requirements
     /// - Transitions: `Todo` → `InProgress` → `Done`
+    /// - Mutates internal state directly
     /// - Marks as `dirty`
-    pub fn change_to_next_state(self) -> Result<(Self, Vec<TodoEvent>), TodoError> {
+    pub fn change_to_next_state(&mut self) -> Result<Vec<TodoEvent>, TodoError> {
         // ...
     }
 
     /// Transitions to the previous state in the workflow
     /// 
     /// # Parameters
-    /// - `self`: Takes ownership of Todo (immutable pattern)
+    /// - `&mut self`: Mutable reference to Todo (mutable pattern)
     /// 
     /// # Returns
-    /// - `Ok((Todo, Vec<TodoEvent>))`: Returns updated Todo and `[TodoEvent::TodoStateChanged]`
+    /// - `Ok(Vec<TodoEvent>)`: Returns `[TodoEvent::TodoStateChanged]`
     /// - `Err(TodoError::InvalidStateTransition)`: If already `Todo` (cannot retreat further)
     /// 
     /// # Special Requirements
     /// - Transitions: `Done` → `InProgress` → `Todo`
+    /// - Mutates internal state directly
     /// - Marks as `dirty`
-    pub fn change_to_previous_state(self) -> Result<(Self, Vec<TodoEvent>), TodoError> {
+    pub fn change_to_previous_state(&mut self) -> Result<Vec<TodoEvent>, TodoError> {
         // ...
     }
 
@@ -298,12 +300,13 @@ for event in events {
 
 ### State Transitions
 ```rust
-let (in_progress, events1) = todo.change_to_next_state()?;
-// in_progress: Todo { ...todo, state: TodoState::InProgress, dirty: Some(true) }
+let mut todo = todo; // Make mutable
+let events1 = todo.change_to_next_state()?;
+// todo: Todo { ...state: TodoState::InProgress, dirty: Some(true) }
 // events1: [TodoEvent::TodoStateChanged { id, from_state: Todo, to_state: InProgress, changed_at }]
 
-let (done, events2) = in_progress.change_to_next_state()?;
-// done: Todo { ...in_progress, state: TodoState::Done, dirty: Some(true) }
+let events2 = todo.change_to_next_state()?;
+// todo: Todo { ...state: TodoState::Done, dirty: Some(true) }
 // events2: [TodoEvent::TodoStateChanged { id, from_state: InProgress, to_state: Done, changed_at }]
 
 // Process all events
@@ -314,15 +317,17 @@ for event in events1.into_iter().chain(events2) {
 
 ### Updating State Directly
 ```rust
-let (updated, events) = todo.update_state(TodoState::InProgress)?;
-// updated: Todo { ...todo, state: TodoState::InProgress, dirty: Some(true) }
+let mut todo = todo; // Make mutable
+let events = todo.update_state(TodoState::InProgress)?;
+// todo: Todo { ...state: TodoState::InProgress, dirty: Some(true) }
 // events: [TodoEvent::TodoStateChanged { ... }]
 ```
 
 ### Checking State Transitions
 ```rust
+let mut todo = todo; // Make mutable
 if todo.is_new_state_allowed(TodoState::InProgress) {
-    let (updated, events) = todo.update_state(TodoState::InProgress)?;
+    let events = todo.update_state(TodoState::InProgress)?;
     // Process events
 }
 
@@ -334,14 +339,14 @@ if TodoState::Todo.can_advance() {
 ### Working with Repository
 ```rust
 // Load a Todo from repository
-let todo = repository.find_by_id(&todo_id).await?
+let mut todo = repository.find_by_id(&todo_id).await?
     .ok_or(TodoError::TodoNotFound)?;
 
-// Modify the Todo
-let (updated_todo, events) = todo.change_to_next_state()?;
+// Modify the Todo (mutates in place)
+let events = todo.change_to_next_state()?;
 
 // Save back to repository
-repository.save(&updated_todo).await?;
+repository.save(&todo).await?;
 
 // Process events
 for event in events {
@@ -352,15 +357,15 @@ for event in events {
 ### Working with Multiple Todos
 ```rust
 // Load all Todos from repository
-let todos = repository.find_all().await?;
+let mut todos = repository.find_all().await?;
 
 // Process each Todo
 let mut all_events = Vec::new();
-for mut todo in todos {
+for todo in &mut todos {
     if todo.is_new_state_allowed(TodoState::InProgress) {
-        let (updated, events) = todo.change_to_next_state()?;
+        let events = todo.change_to_next_state()?;
         all_events.extend(events);
-        repository.save(&updated).await?;
+        repository.save(todo).await?;
     }
 }
 
@@ -374,11 +379,11 @@ for event in all_events {
 
 ```rust
 // Create a todo - returns Todo and TodoCreated event
-let (todo, mut all_events) = Todo::new("Complete project documentation".to_string())?;
+let (mut todo, mut all_events) = Todo::new("Complete project documentation".to_string())?;
 // all_events: [TodoEvent::TodoCreated { ... }]
 
-// Change state - returns updated Todo and TodoStateChanged event
-let (todo, events) = todo.change_to_next_state()?;
+// Change state - mutates todo and returns TodoStateChanged event
+let events = todo.change_to_next_state()?;
 all_events.extend(events);
 // all_events now contains: [TodoEvent::TodoCreated { ... }, TodoEvent::TodoStateChanged { ... }]
 

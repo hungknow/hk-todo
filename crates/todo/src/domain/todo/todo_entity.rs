@@ -53,18 +53,18 @@ impl Todo {
     /// Updates the Todo state with validation
     /// 
     /// # Parameters
-    /// - `self`: Takes ownership of Todo (immutable pattern)
+    /// - `&mut self`: Mutable reference to Todo (mutable pattern)
     /// - `new_state`: Target state to transition to
     /// 
     /// # Returns
-    /// - `Ok((Todo, Vec<TodoEvent>))`: Returns updated Todo and `[TodoEvent::TodoStateChanged]`
+    /// - `Ok(Vec<TodoEvent>)`: Returns `[TodoEvent::TodoStateChanged]`
     /// - `Err(TodoError::InvalidStateTransition)`: If transition not allowed or same state
     /// 
     /// # Special Requirements
     /// - Validates new state differs from current
+    /// - Mutates internal state directly
     /// - Marks as `dirty`
-    /// - Returns new instance (immutable)
-    pub fn update_state(self, new_state: TodoState) -> Result<(Self, Vec<TodoEvent>), TodoError> {
+    pub fn update_state(&mut self, new_state: TodoState) -> Result<Vec<TodoEvent>, TodoError> {
         if !self.is_new_state_allowed(new_state) {
             return Err(TodoError::InvalidStateTransition);
         }
@@ -72,37 +72,33 @@ impl Todo {
         let from_state = self.state;
         let changed_at = Utc::now();
 
-        let updated_todo = Todo {
-            id: self.id.clone(),
-            created_at: self.created_at,
-            description: self.description,
-            state: new_state,
-            dirty: Some(true),
-        };
+        self.state = new_state;
+        self.dirty = Some(true);
 
         let event = TodoEvent::TodoStateChanged {
-            id: self.id,
+            id: self.id.clone(),
             from_state,
             to_state: new_state,
             changed_at,
         };
 
-        Ok((updated_todo, vec![event]))
+        Ok(vec![event])
     }
 
     /// Transitions to the next state in the workflow
     /// 
     /// # Parameters
-    /// - `self`: Takes ownership of Todo (immutable pattern)
+    /// - `&mut self`: Mutable reference to Todo (mutable pattern)
     /// 
     /// # Returns
-    /// - `Ok((Todo, Vec<TodoEvent>))`: Returns updated Todo and `[TodoEvent::TodoStateChanged]`
+    /// - `Ok(Vec<TodoEvent>)`: Returns `[TodoEvent::TodoStateChanged]`
     /// - `Err(TodoError::InvalidStateTransition)`: If already `Done` (cannot advance further)
     /// 
     /// # Special Requirements
     /// - Transitions: `Todo` → `InProgress` → `Done`
+    /// - Mutates internal state directly
     /// - Marks as `dirty`
-    pub fn change_to_next_state(self) -> Result<(Self, Vec<TodoEvent>), TodoError> {
+    pub fn change_to_next_state(&mut self) -> Result<Vec<TodoEvent>, TodoError> {
         let next_state = match self.state {
             TodoState::Todo => TodoState::InProgress,
             TodoState::InProgress => TodoState::Done,
@@ -115,16 +111,17 @@ impl Todo {
     /// Transitions to the previous state in the workflow
     /// 
     /// # Parameters
-    /// - `self`: Takes ownership of Todo (immutable pattern)
+    /// - `&mut self`: Mutable reference to Todo (mutable pattern)
     /// 
     /// # Returns
-    /// - `Ok((Todo, Vec<TodoEvent>))`: Returns updated Todo and `[TodoEvent::TodoStateChanged]`
+    /// - `Ok(Vec<TodoEvent>)`: Returns `[TodoEvent::TodoStateChanged]`
     /// - `Err(TodoError::InvalidStateTransition)`: If already `Todo` (cannot retreat further)
     /// 
     /// # Special Requirements
     /// - Transitions: `Done` → `InProgress` → `Todo`
+    /// - Mutates internal state directly
     /// - Marks as `dirty`
-    pub fn change_to_previous_state(self) -> Result<(Self, Vec<TodoEvent>), TodoError> {
+    pub fn change_to_previous_state(&mut self) -> Result<Vec<TodoEvent>, TodoError> {
         let previous_state = match self.state {
             TodoState::Done => TodoState::InProgress,
             TodoState::InProgress => TodoState::Todo,
