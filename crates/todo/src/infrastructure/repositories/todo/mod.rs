@@ -1,4 +1,4 @@
-mod sql_todo_repository;
+mod inmemory_todo_repository;
 
-pub use sql_todo_repository::SqlTodoRepository;
+pub use inmemory_todo_repository::InMemoryTodoRepository;
 
