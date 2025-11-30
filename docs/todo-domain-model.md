@@ -17,7 +17,6 @@ src/
 │       ├── mod.rs                      # Public exports for Todo domain
 │       ├── todo.entity.rs              # Entity, Enum (TodoState), and Todo methods
 │       ├── todo.event.rs               # TodoEvent enum definition
-│       ├── todos.collection.rs         # Todos collection struct and methods
 │       └── todo.repository.rs          # Repository trait definition
 │
 ├── infrastructure/
@@ -209,124 +208,6 @@ Domain methods return domain events along with the modified Todo. Events are ret
 
 ---
 
-### Todos Collection
-
-The `Todos` struct is a collection aggregate that wraps multiple `Todo` instances and provides collection-level domain operations.
-
-#### Properties
-
-```rust
-pub struct Todos {
-    items: HashMap<String, Todo>,
-}
-
-impl Todos {
-    /// Creates a new empty Todos collection
-    /// 
-    /// # Returns
-    /// - `Todos`: Empty collection with initialized HashMap
-    pub fn new() -> Self {
-        // ...
-    }
-
-    /// Creates and adds a new Todo to the collection
-    /// 
-    /// # Parameters
-    /// - `self`: Takes ownership of Todos (immutable pattern)
-    /// - `description`: Task description for the new Todo
-    /// 
-    /// # Returns
-    /// - `Ok((Todos, Vec<TodoEvent>))`: Returns updated Todos and `[TodoEvent::TodoCreated]`
-    /// - `Err(TodoError::EmptyDescription)`: If description is empty
-    /// 
-    /// # Special Requirements
-    /// - Creates Todo via `Todo::new()`
-    /// - Uses generated Todo ID as HashMap key
-    /// - Preserves existing Todos (immutable)
-    /// - Overwrites if duplicate ID
-    pub fn add_todo(self, description: String) -> Result<(Self, Vec<TodoEvent>), TodoError> {
-        // ...
-    }
-
-    /// Updates an existing Todo with partial data
-    /// 
-    /// # Parameters
-    /// - `self`: Takes ownership of Todos (immutable pattern)
-    /// - `todo_update`: Partial update data with required `id` field
-    /// 
-    /// # Returns
-    /// - `Ok((Todos, Vec<TodoEvent>))`: Returns updated Todos and events
-    ///   - `[TodoEvent::TodoStateChanged]` if state is updated
-    ///   - `[]` if only non-state fields are updated
-    /// - `Err(TodoError::TodoNotFound)`: If `todo_update.id` doesn't exist in collection
-    /// 
-    /// # Special Requirements
-    /// - Merges updates with existing Todo
-    /// - Preserves all other Todos (immutable)
-    /// - Requires `todo_update.id` to exist in collection
-    /// - Triggers state change event if state is updated
-    pub fn update_todo(self, todo_update: TodoUpdate) -> Result<(Self, Vec<TodoEvent>), TodoError> {
-        // ...
-    }
-
-    /// Gets a Todo by ID
-    /// 
-    /// # Parameters
-    /// - `self`: Reference to Todos
-    /// - `id`: Todo identifier
-    /// 
-    /// # Returns
-    /// - `Option<&Todo>`: Reference to Todo if exists, `None` otherwise
-    pub fn get(&self, id: &str) -> Option<&Todo> {
-        // ...
-    }
-
-    /// Gets a mutable Todo by ID
-    /// 
-    /// # Parameters
-    /// - `self`: Mutable reference to Todos
-    /// - `id`: Todo identifier
-    /// 
-    /// # Returns
-    /// - `Option<&mut Todo>`: Mutable reference to Todo if exists, `None` otherwise
-    pub fn get_mut(&mut self, id: &str) -> Option<&mut Todo> {
-        // ...
-    }
-
-    /// Returns all Todo IDs
-    /// 
-    /// # Parameters
-    /// - `self`: Reference to Todos
-    /// 
-    /// # Returns
-    /// - `Vec<&String>`: Vector of all Todo ID references
-    pub fn ids(&self) -> Vec<&String> {
-        // ...
-    }
-
-    /// Returns the number of Todos
-    /// 
-    /// # Parameters
-    /// - `self`: Reference to Todos
-    /// 
-    /// # Returns
-    /// - `usize`: Number of Todos in the collection
-    pub fn len(&self) -> usize {
-        // ...
-    }
-}
-```
-
-#### Invariants
-
-1. **Unique IDs**: Each Todo in the collection must have a unique ID (enforced by HashMap key)
-2. **Immutable Operations**: Collection operations return new instances, preserving immutability
-3. **Event Propagation**: Collection methods return events from underlying Todo operations
-
----
-
----
-
 ### Todo Repository
 
 The `TodoRepository` trait defines the interface for persisting and retrieving Todo aggregates. This trait belongs to the domain layer and is implemented in the infrastructure layer, following the Dependency Inversion Principle.
@@ -450,49 +331,42 @@ if TodoState::Todo.can_advance() {
 }
 ```
 
-### Collection Operations
+### Working with Repository
 ```rust
-// Create empty Todos collection
-let mut todos = Todos::new();
+// Load a Todo from repository
+let todo = repository.find_by_id(&todo_id).await?
+    .ok_or(TodoError::TodoNotFound)?;
 
-// Add a new Todo - returns Todos and events
-let (todos, mut all_events) = todos.add_todo(todo);
-// todos: Todos { items: { todo.id => todo } }
-// all_events: [TodoEvent::TodoCreated { ... }]
+// Modify the Todo
+let (updated_todo, events) = todo.change_to_next_state()?;
 
-// Update a Todo using Todo methods
-if let Some(existing_todo) = todos.get(&todo.id) {
-    let (modified_todo, events) = existing_todo.change_to_next_state()?;
-    all_events.extend(events);
-    // Replace the todo in the collection
-    let mut items = todos.items;
-    items.insert(modified_todo.id.clone(), modified_todo);
-    todos = Todos { items };
+// Save back to repository
+repository.save(&updated_todo).await?;
+
+// Process events
+for event in events {
+    // Handle state change events
 }
+```
 
-// Or use Todos method for partial updates
-let (todos, events) = todos.update_todo(TodoUpdate {
-    id: todo.id.clone(),
-    state: Some(TodoState::Done),
-    description: None,
-})?;
-all_events.extend(events);
-// todos: Todos with updated Todo
-// events: [TodoEvent::TodoStateChanged { ... }]
+### Working with Multiple Todos
+```rust
+// Load all Todos from repository
+let todos = repository.find_all().await?;
+
+// Process each Todo
+let mut all_events = Vec::new();
+for mut todo in todos {
+    if todo.is_new_state_allowed(TodoState::InProgress) {
+        let (updated, events) = todo.change_to_next_state()?;
+        all_events.extend(events);
+        repository.save(&updated).await?;
+    }
+}
 
 // Process all collected events
 for event in all_events {
     // Handle events
-}
-```
-
-### Partial Update Type
-
-```rust
-pub struct TodoUpdate {
-    pub id: String,
-    pub state: Option<TodoState>,
-    pub description: Option<String>,
 }
 ```
 
