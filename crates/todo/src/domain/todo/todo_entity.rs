@@ -61,11 +61,11 @@ impl Todo {
     /// - `Err(TodoError::InvalidStateTransition)`: If transition not allowed or same state
     /// 
     /// # Special Requirements
-    /// - Validates new state differs from current
+    /// - Validates new state differs from current using TodoState::can_transition_to()
     /// - Mutates internal state directly
     /// - Marks as `dirty`
     pub fn update_state(&mut self, new_state: TodoState) -> Result<Vec<TodoEvent>, TodoError> {
-        if !self.is_new_state_allowed(new_state) {
+        if !self.state.can_transition_to(new_state) {
             return Err(TodoError::InvalidStateTransition);
         }
 
@@ -129,26 +129,6 @@ impl Todo {
         };
 
         self.update_state(previous_state)
-    }
-
-    /// Validates if a state transition is allowed
-    /// 
-    /// # Parameters
-    /// - `self`: Reference to Todo
-    /// - `new_state`: Target state to validate
-    /// 
-    /// # Returns
-    /// - `bool`: `false` if same state, `true` if transition allowed
-    /// 
-    /// # Special Requirements
-    /// - Extensible for workflow rules
-    pub fn is_new_state_allowed(&self, new_state: TodoState) -> bool {
-        if self.state == new_state {
-            return false;
-        }
-
-        // Allow any state transition for now (can be extended with workflow rules)
-        true
     }
 }
 
