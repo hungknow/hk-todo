@@ -1,0 +1,1 @@
+`cargo install flutter_rust_bridge_codegen`

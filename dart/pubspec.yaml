@@ -1,0 +1,17 @@
+name: todo_dart
+description: Todo Dart package with Rust backend
+
+environment:
+  sdk: ^3.9.2
+
+# Add regular dependencies here.
+dependencies:
+  path: ^1.9.0
+  flutter_rust_bridge: ^2.11.1
+  ffi: ^2.1.4
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
+  ffigen: ^20.1.0
+
