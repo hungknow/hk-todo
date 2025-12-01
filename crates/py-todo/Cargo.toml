@@ -1,0 +1,13 @@
+[package]
+name = "py_todo"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "py_todo"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+todo = { path = "../todo", features = ["python"] }
+pyo3 = { workspace = true, features = ["extension-module"] }
+
