@@ -1,7 +1,7 @@
 [package]
 name = "todo"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "todo"
@@ -11,7 +11,7 @@ crate-type = ["rlib", "staticlib"]
 chrono = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true }
-pyo3 = { workspace = true, optional = true, features = ["extension-module"] }
+pyo3 = { workspace = true, optional = true }
 
 [features]
 default = []

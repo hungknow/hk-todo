@@ -196,7 +196,7 @@ impl From<TodoEvent> for PyTodoEvent {
 
 /// Python module initialization
 #[pymodule]
-pub fn todo(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn todo(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTodo>()?;
     m.add_class::<PyTodoState>()?;
     m.add_class::<PyTodoError>()?;

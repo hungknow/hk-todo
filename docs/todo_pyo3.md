@@ -6,6 +6,10 @@ This document describes the file tree structure for the Todo Rust library and it
 
 The Todo project uses PyO3 to create Python bindings for the Rust library, and maturin to build and package the Python library. This allows Python developers to use the high-performance Rust implementation while maintaining a Pythonic API.
 
+**Key Setup Options:**
+- **With `build.rs`**: Use `pyo3-build-config` in a `build.rs` script to enable `cargo build` for the entire workspace
+- **Without `build.rs`**: Exclude `py-todo` from workspace and build only with `maturin` for Python distribution
+
 ## File Tree Structure
 
 ### Rust Library Structure
@@ -51,6 +55,7 @@ crates/todo/
 crates/py-todo/
 ├── Cargo.toml                    # Root crate configuration (depends on todo crate)
 ├── pyproject.toml                # Python package configuration (maturin)
+├── build.rs                      # Build script for Python linking (uses pyo3-build-config)
 └── src/
     └── lib.rs                    # Re-exports Python bindings from todo::python
 ```
@@ -131,16 +136,17 @@ Update `crates/todo/Cargo.toml` to include PyO3 as an optional dependency:
 [package]
 name = "todo"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
+name = "todo"
 crate-type = ["rlib", "staticlib"]
 
 [dependencies]
 chrono = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true }
-pyo3 = { workspace = true, optional = true, features = ["extension-module"] }
+pyo3 = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -149,7 +155,9 @@ python = ["pyo3"]
 
 **Key points:**
 - `[lib] crate-type = ["rlib", "staticlib"]` is required for the crate to be used as a library dependency by `py-todo`
+- `[lib] name = "todo"` explicitly sets the library name (optional but recommended for clarity)
 - PyO3 is optional so the core `todo` crate can be used without Python dependencies when the `python` feature is not enabled
+- The `extension-module` feature is handled at the workspace level, not in individual crates
 
 ### Step 2: Create Python Bindings Module in todo Crate
 
@@ -228,7 +236,7 @@ The `crates/py-todo/Cargo.toml` should depend on the `todo` crate with the `pyth
 [package]
 name = "py_todo"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "py_todo"
@@ -236,7 +244,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 todo = { path = "../todo", features = ["python"] }
-pyo3 = { workspace = true, features = ["extension-module"] }
+pyo3 = { workspace = true }
+
+[build-dependencies]
+pyo3-build-config = "0.27.2"
+
+[features]
+default = []
+cython-compat = []
+extension-module = [
+    "pyo3/extension-module",
+]
 ```
 
 **Key points:**
@@ -246,7 +264,9 @@ pyo3 = { workspace = true, features = ["extension-module"] }
   - The Python module name is controlled by the `#[pymodule]` function name in `lib.rs`, not the library name
 - `crate-type = ["cdylib", "rlib"]` is required for PyO3 extension modules
 - `todo = { path = "../todo", features = ["python"] }` enables Python bindings in the todo crate
-- `pyo3 = { workspace = true, features = ["extension-module"] }` is required for the extension module
+- `pyo3 = { workspace = true }` uses the workspace dependency (which includes `extension-module` feature)
+- `[build-dependencies] pyo3-build-config` is required for the `build.rs` script to handle Python linking
+- `extension-module` feature enables the PyO3 extension module functionality
 
 ### Step 5: Create pyproject.toml
 
@@ -282,34 +302,48 @@ use pyo3::prelude::*;
 // The module is already initialized by todo::python::todo
 // This crate just serves as the entry point for maturin
 #[pymodule]
-fn todo(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn py_todo(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Delegate to the todo::python module
-    ::todo::python::todo(m)
+    todo::python::todo(py, m)
 }
 ```
 
 **Key points:**
-- The `#[pymodule]` function name (`todo`) determines the Python module name (`import todo`)
+- The `#[pymodule]` function name (`py_todo`) determines the Python module name (`import py_todo`)
+- If you want the Python module to be named `todo`, change the function name to `todo`:
+  ```rust
+  #[pymodule]
+  fn todo(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+      todo::python::todo(py, m)
+  }
+  ```
 - The library name (`py_todo`) is separate and only affects Rust's internal naming
-- This delegates to `todo::python::todo` which contains the actual bindings
+- The function signature includes `Python<'_>` as the first parameter (required in PyO3 0.27+)
+- This delegates to `todo::python::todo` which contains the actual bindings and registers all the classes
 
-### Step 7: Update Workspace Cargo.toml
+### Step 7: Create build.rs for py-todo
 
-**Important**: `py-todo` should be **excluded** from workspace members, not included. This is because:
+Create `crates/py-todo/build.rs` to handle Python linking:
 
-1. PyO3 extension modules require Python linking, which `cargo build` doesn't handle automatically
-2. `py-todo` should be built with `maturin`, not `cargo build`
-3. Including it in workspace members causes `cargo build` to fail with linker errors
+```rust
+fn main() {
+    pyo3_build_config::add_extension_module_link_args();
+}
+```
 
-Configure the root `Cargo.toml` as follows:
+This allows `py-todo` to be built with `cargo build` by properly linking against Python libraries.
+
+### Step 8: Update Workspace Cargo.toml
+
+You have two options for workspace configuration:
+
+If you've created `build.rs` with `pyo3-build-config`, you can include `py-todo` in the workspace:
 
 ```toml
 [workspace]
 resolver = "3"
 members = [
     "crates/todo",
-]
-exclude = [
     "crates/py-todo",
 ]
 
@@ -317,23 +351,38 @@ exclude = [
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
 uuid = { version = "1.0", features = ["v4"] }
-pyo3 = "0.27.2"
+pyo3 = { version = "0.27.2", features = ["extension-module"] }
+pyo3-build-config = "0.27.2"
 ```
 
-**Why exclude `py-todo`?**
-- `cargo build` will fail when trying to build `py-todo` because it requires Python library linking
-- PyO3 extension modules must be built with `maturin`, which handles Python linking automatically
+**Benefits:**
+- `cargo build` works for the entire workspace
+- Better IDE support and tooling integration
+- Consistent dependency management
+
+**Requirements:**
+- Must have `build.rs` with `pyo3_build_config::add_extension_module_link_args()`
+- Must add `pyo3-build-config` to workspace dependencies
+- Must add `pyo3-build-config` as a build-dependency in `py-todo/Cargo.toml`
+
+**When to use this:**
+- If you prefer to only build `py-todo` with `maturin`
+- If you want to avoid Python linking during regular `cargo build`
 - The `todo` crate can still be built normally with `cargo build -p todo` or just `cargo build` (since `py-todo` is excluded)
 
-### Step 8: Install Maturin
+### Step 9: Install Maturin
 
 ```bash
+pipx install maturin
+# or
+uv tool install maturin
+# or
 pip install maturin
 # or
 cargo install maturin
 ```
 
-### Step 9: Build Python Package
+### Step 10: Build Python Package
 
 From `crates/py-todo/` directory:
 
@@ -348,21 +397,27 @@ maturin build
 maturin publish
 ```
 
-### Step 10: Use in Python
+### Step 11: Use in Python
+
+**Note**: The Python module name is determined by the `#[pymodule]` function name in `crates/py-todo/src/lib.rs`. If it's named `py_todo`, use `import py_todo`. If you want it to be `todo`, change the function name to `todo`.
 
 ```python
-import todo
+import py_todo  # or 'import todo' if you changed the module name
 
-# Create a new todo
-todo_obj, events = todo.Todo("Buy groceries")
+# Create a new todo (returns only the todo object)
+todo_obj = py_todo.PyTodo("Buy groceries")
+
+# Or create with events
+todo_obj, events = py_todo.PyTodo.create("Buy groceries")
 
 # Change state
-events = todo_obj.update_state(todo.TodoState.IN_PROGRESS)
+events = todo_obj.update_state(py_todo.PyTodoState.IN_PROGRESS)
 
 # Access properties
 print(todo_obj.id)
 print(todo_obj.description)
 print(todo_obj.state)
+print(todo_obj.created_at)
 ```
 
 ## Async Considerations
@@ -422,7 +477,11 @@ cargo test -p todo
 
 ### Building the Python Extension
 
-**Important**: The `py-todo` crate must be built with `maturin`, not `cargo build`:
+**Important**: The `py-todo` crate can be built in two ways:
+
+#### Option 1: Using Maturin (Recommended for Python Distribution)
+
+For creating Python wheels and distributions, use `maturin`:
 
 ```bash
 # From crates/py-todo directory
@@ -438,10 +497,33 @@ maturin build
 maturin publish
 ```
 
-**Why not `cargo build`?**
-- PyO3 extension modules require linking against Python libraries
-- `cargo build` doesn't automatically find and link Python
-- `maturin` handles Python detection, linking, and packaging automatically
+**Why use maturin?**
+- Handles Python detection, linking, and packaging automatically
+- Creates proper Python wheels (`.whl` files) and source distributions
+- Manages Python package metadata correctly
+- Required for publishing to PyPI
+
+#### Option 2: Using Cargo Build (With build.rs)
+
+If you've set up `build.rs` with `pyo3-build-config`, you can also build with `cargo build`:
+
+```bash
+# From workspace root
+cargo build -p py_todo
+
+# Or if py-todo is in workspace members
+cargo build
+```
+
+**When to use cargo build:**
+- For development and testing
+- When you want to use standard Rust tooling
+- When you don't need Python wheels
+
+**Requirements for cargo build:**
+- Must have `build.rs` with `pyo3_build_config::add_extension_module_link_args()`
+- Must have `pyo3-build-config` in `[build-dependencies]`
+- The resulting library can be used with Python, but won't be a proper Python package
 
 ## Troubleshooting
 
@@ -453,12 +535,17 @@ Undefined symbols for architecture arm64:
   "_PyBaseObject_Type", referenced from: ...
 ```
 
-**Cause**: Trying to build `py-todo` with `cargo build` instead of `maturin`.
+**Cause**: Trying to build `py-todo` with `cargo build` without proper Python linking setup.
 
 **Solution**: 
-1. Ensure `py-todo` is excluded from workspace members (see Step 7)
-2. Use `maturin develop` or `maturin build` to build the Python extension
-3. Use `cargo build -p todo` to build only the Rust library
+1. **If using Option A (include in workspace)**: Ensure you have:
+   - `build.rs` file with `pyo3_build_config::add_extension_module_link_args()`
+   - `pyo3-build-config` in `[build-dependencies]` in `py-todo/Cargo.toml`
+   - `pyo3-build-config` in workspace dependencies
+2. **If using Option B (exclude from workspace)**: 
+   - Ensure `py-todo` is excluded from workspace members (see Step 8)
+   - Use `maturin develop` or `maturin build` to build the Python extension
+   - Use `cargo build -p todo` to build only the Rust library
 
 ### Build Error: "output filename collision"
 
@@ -479,9 +566,19 @@ The lib target `todo` in package `todo` has the same output filename as the lib 
 **Symptom**: Even after excluding it, `cargo build` still attempts to build `py-todo`.
 
 **Solution**:
-1. Verify `exclude = ["crates/py-todo"]` is in the root `Cargo.toml`
+1. Verify `exclude = ["crates/py-todo"]` is in the root `Cargo.toml` (if using Option B)
 2. Run `cargo clean` to clear cached build state
 3. Use `cargo build -p todo` to explicitly build only the `todo` crate
+
+### Build Error: Missing `pyo3-build-config`
+
+**Symptom**: `cargo build` fails with errors about missing `pyo3_build_config` module.
+
+**Cause**: `build.rs` uses `pyo3-build-config` but it's not in build-dependencies.
+
+**Solution**:
+1. Add `pyo3-build-config = "0.27.2"` to `[build-dependencies]` in `crates/py-todo/Cargo.toml`
+2. Ensure `pyo3-build-config` is in workspace dependencies in root `Cargo.toml`
 
 ## Testing
 

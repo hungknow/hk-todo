@@ -1,7 +1,7 @@
 [package]
 name = "py_todo"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "py_todo"
@@ -9,5 +9,14 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 todo = { path = "../todo", features = ["python"] }
-pyo3 = { workspace = true, features = ["extension-module"] }
+pyo3 = { workspace = true }
 
+[build-dependencies]
+pyo3-build-config = "0.27.2"
+
+[features]
+default = []
+cython-compat = []
+extension-module = [
+    "pyo3/extension-module",
+]
