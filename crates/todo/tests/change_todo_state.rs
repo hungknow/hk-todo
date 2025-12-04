@@ -23,7 +23,7 @@ enum TestResult {
 }
 
 /// Helper function to create a todo in a specific initial state
-async fn create_todo_in_state(initial_state: TodoState) -> (Todo, String) {
+fn create_todo_in_state(initial_state: TodoState) -> (Todo, String) {
     let (mut todo, _) = Todo::new("Test todo".to_string()).unwrap();
     let todo_id = todo.id.clone();
     
@@ -48,8 +48,8 @@ async fn create_todo_in_state(initial_state: TodoState) -> (Todo, String) {
 async fn run_state_transition_test(test_case: StateTransitionTestCase) {
     // Arrange
     let repository = Box::new(InMemoryTodoRepository::new()) as Box<dyn todo::TodoRepository>;
-    let (todo, todo_id) = create_todo_in_state(test_case.initial_state).await;
-    repository.save(&todo).await.unwrap();
+    let (todo, todo_id) = create_todo_in_state(test_case.initial_state);
+    repository.save(&todo).unwrap();
     let handler = ChangeTodoStateHandler::new(repository);
 
     // Act

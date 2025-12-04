@@ -9,9 +9,9 @@ impl AddTodoHandler {
         Self { todo_repository }
     }
 
-    pub async fn new_todo(&self, description: String) -> Result<Vec<TodoEvent>, TodoError> {
+    pub fn new_todo(&self, description: String) -> Result<Vec<TodoEvent>, TodoError> {
         let (todo, events) = Todo::new(description)?;
-        self.todo_repository.save(&todo).await?;
+        self.todo_repository.save(&todo)?;
         Ok(events)
     }
 }

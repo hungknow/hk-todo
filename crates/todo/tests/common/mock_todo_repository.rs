@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use todo::{Todo, TodoError, TodoRepository};
 
@@ -19,13 +18,12 @@ impl MockTodoRepository {
     }
 }
 
-#[async_trait]
 impl TodoRepository for MockTodoRepository {
-    async fn save(&self, _todo: &Todo) -> Result<(), TodoError> {
+    fn save(&self, _todo: &Todo) -> Result<(), TodoError> {
         Ok(())
     }
 
-    async fn find_by_id(&self, _id: &str) -> Result<Option<Todo>, TodoError> {
+    fn find_by_id(&self, _id: &str) -> Result<Option<Todo>, TodoError> {
         let should_return_none = *self.should_return_none.lock().unwrap();
         if should_return_none {
             Ok(None)
@@ -35,11 +33,11 @@ impl TodoRepository for MockTodoRepository {
         }
     }
 
-    async fn find_all(&self) -> Result<Vec<Todo>, TodoError> {
+    fn find_all(&self) -> Result<Vec<Todo>, TodoError> {
         Ok(vec![])
     }
 
-    async fn delete(&self, _id: &str) -> Result<(), TodoError> {
+    fn delete(&self, _id: &str) -> Result<(), TodoError> {
         Ok(())
     }
 }

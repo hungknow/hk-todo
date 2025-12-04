@@ -1,8 +1,12 @@
 use chrono::{DateTime, Utc};
 use crate::domain::todo::TodoState;
 
+#[cfg(feature = "dart")]
+use flutter_rust_bridge::frb;
+
 /// Domain events that describe significant occurrences in the Todo lifecycle
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "dart", frb)]
 pub enum TodoEvent {
     TodoCreated {
         id: String,

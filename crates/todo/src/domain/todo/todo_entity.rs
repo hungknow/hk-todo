@@ -1,15 +1,19 @@
 use chrono::{DateTime, Utc};
 use crate::domain::todo::{TodoError, TodoEvent, TodoState};
 
+#[cfg(feature = "dart")]
+use flutter_rust_bridge::frb;
+
 /// Aggregate root representing a Todo task
+#[cfg_attr(feature = "dart", frb(non_opaque))]
 pub struct Todo {
     pub id: String,
     pub created_at: DateTime<Utc>,
     pub description: String,
     pub state: TodoState,
-    pub(crate) dirty: Option<bool>,
 }
 
+#[cfg_attr(feature = "dart", frb(ignore))]
 impl Todo {
     /// Creates a new Todo instance
     /// 
@@ -38,7 +42,6 @@ impl Todo {
             created_at,
             description: description.clone(),
             state: TodoState::Todo,
-            dirty: Some(false),
         };
 
         let event = TodoEvent::TodoCreated {
@@ -73,7 +76,6 @@ impl Todo {
         let changed_at = Utc::now();
 
         self.state = new_state;
-        self.dirty = Some(true);
 
         let event = TodoEvent::TodoStateChanged {
             id: self.id.clone(),

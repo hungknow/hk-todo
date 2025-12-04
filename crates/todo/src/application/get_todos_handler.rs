@@ -9,8 +9,8 @@ impl GetTodosHandler {
         Self { todo_repository }
     }
 
-    pub async fn get_todos(&self) -> Result<Vec<Todo>, TodoError> {
-        let todos = self.todo_repository.find_all().await?;
+    pub fn get_todos(&self) -> Result<Vec<Todo>, TodoError> {
+        let todos = self.todo_repository.find_all()?;
         Ok(todos)
     }
 }

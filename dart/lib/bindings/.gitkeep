@@ -1,3 +1,0 @@
-# This directory will contain the auto-generated todo_bridge.dart file
-# Run: cd crates/dart-todo && flutter_rust_bridge_codegen generate
-

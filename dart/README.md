@@ -6,13 +6,13 @@ This package provides Dart bindings for the Todo Rust library using flutter_rust
 
 1. Build the Rust library:
    ```bash
-   cd ../crates/dart-todo
-   cargo build --release
+   cd ../crates/todo
+   cargo build --release --features dart
    ```
 
 2. Generate Dart bindings:
    ```bash
-   cd ../crates/dart-todo
+   cd ../crates/todo
    flutter_rust_bridge_codegen generate
    ```
 

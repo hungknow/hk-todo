@@ -1,5 +1,9 @@
+#[cfg(feature = "dart")]
+use flutter_rust_bridge::frb;
+
 /// Value object representing the state of a Todo in its workflow
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "dart", frb)]
 pub enum TodoState {
     /// Initial state when a todo is created
     Todo,

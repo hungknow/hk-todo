@@ -9,10 +9,10 @@ impl ChangeTodoStateHandler {
         Self { todo_repository }
     }
 
-    pub async fn change_state(&self, id: String, new_state: TodoState) -> Result<Vec<TodoEvent>, TodoError> {
-        let mut todo = self.todo_repository.find_by_id(&id).await?.unwrap();
+    pub fn change_state(&self, id: String, new_state: TodoState) -> Result<Vec<TodoEvent>, TodoError> {
+        let mut todo = self.todo_repository.find_by_id(&id)?.unwrap();
         let events = todo.update_state(new_state)?;
-        self.todo_repository.save(&todo).await?;
+        self.todo_repository.save(&todo)?;
         Ok(events)
     }
 }

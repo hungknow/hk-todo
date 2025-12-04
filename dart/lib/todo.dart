@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:path/path.dart' as path;
-import 'bindings/todo_bridge.dart';
+import 'bindings/todo_bridge.dart/frb_generated.dart';
 
 /// Initialize the Rust library
 Future<void> initRustLib() async {
@@ -14,13 +14,14 @@ Future<void> initRustLib() async {
 
 String _getLibraryPath() {
   // Adjust paths based on your build setup
-  // For development, you might point to the built library in target/
+  // The target directory is in the project root, one level up from dart/
+  final projectRoot = path.dirname(Directory.current.path);
   if (Platform.isLinux) {
-    return path.join(Directory.current.path, 'target', 'debug', 'libdart_todo.so');
+    return path.join(projectRoot, 'target', 'debug', 'libtodo.so');
   } else if (Platform.isMacOS) {
-    return path.join(Directory.current.path, 'target', 'debug', 'libdart_todo.dylib');
+    return path.join(projectRoot, 'target', 'debug', 'libtodo.dylib');
   } else if (Platform.isWindows) {
-    return path.join(Directory.current.path, 'target', 'debug', 'dart_todo.dll');
+    return path.join(projectRoot, 'target', 'debug', 'todo.dll');
   } else {
     throw UnsupportedError('Platform not supported');
   }
